@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "modelship-cli"
 version = "0.1.0"
-description = "Provider-neutral deployment checks and CI workflow generation for containerized AI services."
+description = "Release-readiness evidence and CI workflow generation for containerized AI services."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
 authors = [
   { name = "Shashank Singh" },
 ]
-keywords = ["ai", "containers", "deployment", "docker", "ci-cd", "mlops"]
+keywords = ["ai", "containers", "deployment", "docker", "ci-cd", "mlops", "release-evidence", "security"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",

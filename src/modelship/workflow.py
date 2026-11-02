@@ -31,6 +31,13 @@ jobs:
           if [ -d tests ]; then python -m unittest discover -s tests -v; fi
       - name: Validate container delivery inputs
         run: modelship doctor
+      - name: Create release-evidence dossier
+        run: modelship dossier --force
+      - name: Preserve release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: modelship-release-dossier
+          path: .modelship/release-dossier.json
       - name: Build immutable container image
         run: docker build --tag ${{ github.repository }}:${{ github.sha }} .
 """

@@ -9,3 +9,8 @@ port = 8000
 [deployment]
 target = "local"
 environment = "staging"
+
+[ai]
+service_kind = "ai-api"
+model_provider = "nvidia"
+telemetry = "open-telemetry"

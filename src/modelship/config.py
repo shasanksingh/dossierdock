@@ -23,6 +23,9 @@ class AppConfig:
     port: int
     target: str
     environment: str
+    service_kind: str
+    model_provider: str
+    telemetry: str
     config_path: Path
 
     @property
@@ -44,7 +47,7 @@ class AppConfig:
         return data
 
 
-DEFAULT_CONFIG = """# ModelShip deployment manifest\n\n[app]\nname = \"my-ai-service\"\ndockerfile = \"Dockerfile\"\ncontext = \".\"\nimage = \"my-ai-service\"\nhealthcheck = \"/health\"\nport = 8000\n\n[deployment]\ntarget = \"local\"\nenvironment = \"development\"\n"""
+DEFAULT_CONFIG = """# ModelShip release-evidence manifest\n# Keep credentials in your CI secret store, never in this file.\n\n[app]\nname = \"my-ai-service\"\ndockerfile = \"Dockerfile\"\ncontext = \".\"\nimage = \"my-ai-service\"\nhealthcheck = \"/health\"\nport = 8000\n\n[deployment]\ntarget = \"local\"\nenvironment = \"development\"\n\n[ai]\n# Metadata only: never put API keys or connection strings here.\nservice_kind = \"ai-api\"\nmodel_provider = \"external\"\ntelemetry = \"open-telemetry\"\n"""
 
 
 def default_config_path() -> Path:
@@ -55,6 +58,13 @@ def _table(document: dict[str, Any], key: str) -> dict[str, Any]:
     value = document.get(key)
     if not isinstance(value, dict):
         raise ConfigError(f"Missing [{key}] section.")
+    return value
+
+
+def _optional_table(document: dict[str, Any], key: str) -> dict[str, Any]:
+    value = document.get(key, {})
+    if not isinstance(value, dict):
+        raise ConfigError(f"[{key}] must be a table.")
     return value
 
 
@@ -93,6 +103,7 @@ def load_config(path: str | Path | None = None) -> AppConfig:
 
     app = _table(document, "app")
     deployment = _table(document, "deployment")
+    ai = _optional_table(document, "ai")
     name = _safe_name(_text(app, "name"))
     healthcheck = _text(app, "healthcheck", "/health")
     if not healthcheck.startswith("/"):
@@ -107,5 +118,8 @@ def load_config(path: str | Path | None = None) -> AppConfig:
         port=_port(app),
         target=_text(deployment, "target", "local"),
         environment=_text(deployment, "environment", "development"),
+        service_kind=_text(ai, "service_kind", "ai-api"),
+        model_provider=_text(ai, "model_provider", "unspecified"),
+        telemetry=_text(ai, "telemetry", "unspecified"),
         config_path=config_path,
     )

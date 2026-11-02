@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -54,3 +55,38 @@ class CliTests(unittest.TestCase):
             code, _, errors = self._call(["workflow", "github", "--output", str(destination)])
             self.assertEqual(code, 2)
             self.assertIn("Refusing to overwrite", errors)
+
+    def test_dossier_captures_release_evidence_without_secret_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._call(["init", "--path", str(root)])
+            (root / "Dockerfile").write_text(
+                "FROM python:3.12-slim\nUSER 10001\nHEALTHCHECK CMD python -c \"print('ok')\"\n",
+                encoding="utf-8",
+            )
+            (root / ".dockerignore").write_text(".env\n", encoding="utf-8")
+            (root / "app.py").write_text('@app.get("/health")\ndef health(): pass\n', encoding="utf-8")
+            destination = root / "evidence.json"
+
+            code, output, _ = self._call(
+                ["dossier", "--config", str(root / "modelship.toml"), "--output", str(destination)]
+            )
+
+            self.assertEqual(code, 0)
+            self.assertIn("Created release dossier", output)
+            dossier = json.loads(destination.read_text(encoding="utf-8"))
+            self.assertEqual(dossier["release_readiness"], "ready")
+            self.assertEqual(dossier["ai_service_contract"]["service_kind"], "ai-api")
+            self.assertNotIn("do-not-copy-this", json.dumps(dossier))
+
+    def test_unignored_env_file_blocks_release(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._call(["init", "--path", str(root)])
+            (root / "Dockerfile").write_text("FROM python:3.12-slim\n", encoding="utf-8")
+            (root / ".env").write_text("SERVICE_TOKEN=do-not-copy-this\n", encoding="utf-8")
+            report = run_doctor(root / "modelship.toml")
+            self.assertFalse(report.healthy)
+            exposure = next(check for check in report.checks if check.name == "secret_exposure")
+            self.assertEqual(exposure.status, "error")
+            self.assertNotIn("do-not-copy-this", exposure.message)

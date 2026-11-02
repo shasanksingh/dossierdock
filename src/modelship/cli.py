@@ -11,6 +11,7 @@ from typing import Sequence
 from modelship import __version__
 from modelship.config import DEFAULT_CONFIG
 from modelship.doctor import run_doctor
+from modelship.evidence import build_dossier
 from modelship.workflow import GITHUB_ACTIONS_WORKFLOW
 
 
@@ -77,6 +78,23 @@ def _command_plan(args: argparse.Namespace) -> int:
     return 0 if report.healthy else 1
 
 
+def _command_dossier(args: argparse.Namespace) -> int:
+    report = run_doctor(args.config)
+    dossier = build_dossier(report)
+    serialized = json.dumps(dossier, indent=2) + "\n"
+    if args.output == "-":
+        print(serialized, end="")
+    else:
+        destination = Path(args.output).expanduser().resolve()
+        try:
+            _write(destination, serialized, args.force)
+        except FileExistsError as error:
+            print(error, file=sys.stderr)
+            return 2
+        print(f"Created release dossier: {destination}")
+    return 0 if report.healthy else 1
+
+
 def _command_workflow_github(args: argparse.Namespace) -> int:
     destination = Path(args.output).expanduser().resolve()
     try:
@@ -91,7 +109,7 @@ def _command_workflow_github(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="modelship",
-        description="Deployment checks and CI workflow generation for containerized AI services.",
+        description="Release-readiness evidence and CI workflow generation for containerized AI services.",
     )
     parser.add_argument("--version", action="version", version=f"modelship {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -109,6 +127,16 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument("--config", help="Path to modelship.toml (defaults to the current directory).")
         command.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
         command.set_defaults(handler=handler)
+
+    dossier = subparsers.add_parser("dossier", help="Create a portable AI service release-evidence dossier.")
+    dossier.add_argument("--config", help="Path to modelship.toml (defaults to the current directory).")
+    dossier.add_argument(
+        "--output",
+        default=".modelship/release-dossier.json",
+        help="Dossier destination, or '-' to print JSON to stdout.",
+    )
+    dossier.add_argument("--force", action="store_true", help="Replace an existing dossier.")
+    dossier.set_defaults(handler=_command_dossier)
 
     workflow = subparsers.add_parser("workflow", help="Generate CI workflow files.")
     workflow_subparsers = workflow.add_subparsers(dest="workflow_command", required=True)
