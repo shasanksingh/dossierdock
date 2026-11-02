@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modelship-cli"
+version = "0.1.0"
+description = "Provider-neutral deployment checks and CI workflow generation for containerized AI services."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Shashank Singh" },
+]
+keywords = ["ai", "containers", "deployment", "docker", "ci-cd", "mlops"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Build Tools",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["build>=1.2", "twine>=5.1"]
+
+[project.scripts]
+modelship = "modelship.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/shasanksingh/modelship-cli"
+Issues = "https://github.com/shasanksingh/modelship-cli/issues"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]

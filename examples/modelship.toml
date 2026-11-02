@@ -1,0 +1,11 @@
+[app]
+name = "support-insights-api"
+dockerfile = "Dockerfile"
+context = "."
+image = "ghcr.io/acme/support-insights-api"
+healthcheck = "/health"
+port = 8000
+
+[deployment]
+target = "local"
+environment = "staging"
