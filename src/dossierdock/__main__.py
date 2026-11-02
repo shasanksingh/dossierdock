@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from modelship.cli import main
+from dossierdock.cli import main
 
 
 if __name__ == "__main__":

@@ -1,12 +1,12 @@
-# Contributing to ModelShip
+# Contributing to DossierDock
 
 Thank you for helping make container delivery easier to review and operate.
 
 ## Local setup
 
 ```bash
-git clone https://github.com/shasanksingh/modelship-cli.git
-cd modelship-cli
+git clone https://github.com/shasanksingh/dossierdock.git
+cd dossierdock
 python -m venv .venv
 .venv\Scripts\activate  # Windows PowerShell
 python -m pip install -e .

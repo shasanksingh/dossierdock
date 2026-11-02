@@ -6,7 +6,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 import re
 
-from modelship.config import AppConfig, ConfigError, load_config
+from dossierdock.config import AppConfig, ConfigError, load_config
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +61,7 @@ def _docker_contract_checks(config: AppConfig) -> list[Check]:
             Check(
                 "container_healthcheck",
                 "warning",
-                "No Docker HEALTHCHECK found; ModelShip will retain the external HTTP health contract.",
+                "No Docker HEALTHCHECK found; DossierDock will retain the external HTTP health contract.",
             )
         )
     return checks

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import hashlib
 from typing import Any
 
-from modelship.doctor import DoctorReport
+from dossierdock.doctor import DoctorReport
 
 
 DOSSIER_SCHEMA_VERSION = "1.0"

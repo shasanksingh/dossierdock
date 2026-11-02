@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "modelship-cli"
+name = "dossierdock"
 version = "0.1.0"
 description = "Release-readiness evidence and CI workflow generation for containerized AI services."
 readme = "README.md"
@@ -31,11 +31,11 @@ dependencies = []
 dev = ["build>=1.2", "twine>=5.1"]
 
 [project.scripts]
-modelship = "modelship.cli:main"
+dossierdock = "dossierdock.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/shasanksingh/modelship-cli"
-Issues = "https://github.com/shasanksingh/modelship-cli/issues"
+Homepage = "https://github.com/shasanksingh/dossierdock"
+Issues = "https://github.com/shasanksingh/dossierdock/issues"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from modelship.config import ConfigError, load_config
+from dossierdock.config import ConfigError, load_config
 
 
 VALID_MANIFEST = """[app]
@@ -25,7 +25,7 @@ class ConfigTests(unittest.TestCase):
     def _manifest(self, text: str) -> Path:
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        path = Path(temporary.name) / "modelship.toml"
+        path = Path(temporary.name) / "dossierdock.toml"
         path.write_text(text, encoding="utf-8")
         return path
 

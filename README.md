@@ -1,12 +1,12 @@
-# ModelShip CLI
+# DossierDock
 
-`modelship` is a provider-neutral **release-evidence CLI for containerized AI services**. It does more than produce a build command: it checks the service contract, image hardening signals, health-route evidence, and local-secret exposure, then writes a portable release dossier for a pull request, CI artifact, or operational handover.
+`dossierdock` is a provider-neutral **release-evidence CLI for containerized AI services**. It does more than produce a build command: it checks the service contract, image hardening signals, health-route evidence, and local-secret exposure, then writes a portable release dossier for a pull request, CI artifact, or operational handover.
 
 The first release deliberately does **not** own cloud credentials or send a deployment anywhere. That makes it a safe foundation for teams that want a clear, reviewable path from an AI service to a container build and CI pipeline. Remote targets (SSH, AWS, and other providers) can be added as opt-in adapters rather than built into every command.
 
 ## Why it is different
 
-Most deployment tools build or deploy an image. ModelShip focuses on answering: **“What evidence says this AI service is ready to release?”**
+Most deployment tools build or deploy an image. DossierDock focuses on answering: **“What evidence says this AI service is ready to release?”**
 
 It produces a small, provider-neutral `release-dossier.json` containing only safe metadata: the service contract, health endpoint, manifest hash, blockers, review items, and checks performed. No API key, connection string, or secret value is collected or written to the dossier.
 
@@ -14,7 +14,7 @@ This makes the tool useful before choosing AWS, Docker, Kubernetes, a VM, or ano
 
 ## What it does today
 
-- Creates a portable `modelship.toml` manifest.
+- Creates a portable `dossierdock.toml` manifest.
 - Checks the Dockerfile, health endpoint, AI-service metadata, and deployment metadata before CI runs.
 - Reviews root-container execution, missing Docker health checks, and common credential files that are not ignored.
 - Looks for evidence that the declared HTTP health route exists in application source.
@@ -27,11 +27,11 @@ This makes the tool useful before choosing AWS, Docker, Kubernetes, a VM, or ano
 
 ```bash
 python -m pip install -e .
-modelship init --path .
-modelship doctor
-modelship plan
-modelship dossier
-modelship workflow github --output .github/workflows/modelship.yml
+dossierdock init --path .
+dossierdock doctor
+dossierdock plan
+dossierdock dossier
+dossierdock workflow github --output .github/workflows/dossierdock.yml
 ```
 
 Add a health endpoint to your API, then build it locally:
@@ -68,16 +68,16 @@ The manifest contains no credentials. Keep provider credentials in the CI platfo
 
 | Command | Purpose |
 | --- | --- |
-| `modelship init` | Create a starter manifest. |
-| `modelship doctor` | Report release-readiness issues and checks. |
-| `modelship plan` | Show the container build and health-check plan. |
-| `modelship dossier` | Write reviewable, secret-free release evidence as JSON. |
-| `modelship workflow github` | Create a GitHub Actions CI workflow. |
+| `dossierdock init` | Create a starter manifest. |
+| `dossierdock doctor` | Report release-readiness issues and checks. |
+| `dossierdock plan` | Show the container build and health-check plan. |
+| `dossierdock dossier` | Write reviewable, secret-free release evidence as JSON. |
+| `dossierdock workflow github` | Create a GitHub Actions CI workflow. |
 
 ## Release dossier
 
 ```bash
-modelship dossier --output .modelship/release-dossier.json
+dossierdock dossier --output .dossierdock/release-dossier.json
 ```
 
 The dossier records the application, declared AI-service contract, health URL, SHA-256 fingerprint of the manifest, blockers, and review items. Generated GitHub Actions workflows upload it as a build artifact so the release evidence stays with the exact CI run that built the image.
@@ -85,7 +85,7 @@ The dossier records the application, declared AI-service contract, health URL, S
 ## Project layout
 
 ```text
-src/modelship/       CLI, config loader, checks, workflow templates
+src/dossierdock/     CLI, config loader, checks, workflow templates
 tests/               Standard-library unit tests
 examples/            A deployable manifest example
 docs/                Architecture and contributor notes

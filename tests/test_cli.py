@@ -7,8 +7,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from modelship.cli import main
-from modelship.doctor import run_doctor
+from dossierdock.cli import main
+from dossierdock.doctor import run_doctor
 
 
 class CliTests(unittest.TestCase):
@@ -24,7 +24,7 @@ class CliTests(unittest.TestCase):
             code, output, _ = self._call(["init", "--path", str(root)])
             self.assertEqual(code, 0)
             self.assertIn("Created", output)
-            self.assertTrue((root / "modelship.toml").is_file())
+            self.assertTrue((root / "dossierdock.toml").is_file())
 
             code, _, errors = self._call(["init", "--path", str(root)])
             self.assertEqual(code, 2)
@@ -35,22 +35,22 @@ class CliTests(unittest.TestCase):
             root = Path(temporary)
             self._call(["init", "--path", str(root)])
             (root / "Dockerfile").write_text("FROM python:3.11-slim\n", encoding="utf-8")
-            report = run_doctor(root / "modelship.toml")
+            report = run_doctor(root / "dossierdock.toml")
             self.assertTrue(report.healthy)
 
-            code, output, _ = self._call(["plan", "--config", str(root / "modelship.toml")])
+            code, output, _ = self._call(["plan", "--config", str(root / "dossierdock.toml")])
             self.assertEqual(code, 0)
             self.assertIn("docker build", output)
             self.assertIn("http://localhost:8000/health", output)
 
     def test_workflow_generation_is_explicit_and_repeat_safe(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            destination = Path(temporary) / ".github" / "workflows" / "modelship.yml"
+            destination = Path(temporary) / ".github" / "workflows" / "dossierdock.yml"
             code, _, _ = self._call(["workflow", "github", "--output", str(destination)])
             self.assertEqual(code, 0)
             content = destination.read_text(encoding="utf-8")
             self.assertIn("docker build", content)
-            self.assertIn("modelship doctor", content)
+            self.assertIn("dossierdock doctor", content)
 
             code, _, errors = self._call(["workflow", "github", "--output", str(destination)])
             self.assertEqual(code, 2)
@@ -69,7 +69,7 @@ class CliTests(unittest.TestCase):
             destination = root / "evidence.json"
 
             code, output, _ = self._call(
-                ["dossier", "--config", str(root / "modelship.toml"), "--output", str(destination)]
+                ["dossier", "--config", str(root / "dossierdock.toml"), "--output", str(destination)]
             )
 
             self.assertEqual(code, 0)
@@ -85,7 +85,7 @@ class CliTests(unittest.TestCase):
             self._call(["init", "--path", str(root)])
             (root / "Dockerfile").write_text("FROM python:3.12-slim\n", encoding="utf-8")
             (root / ".env").write_text("SERVICE_TOKEN=do-not-copy-this\n", encoding="utf-8")
-            report = run_doctor(root / "modelship.toml")
+            report = run_doctor(root / "dossierdock.toml")
             self.assertFalse(report.healthy)
             exposure = next(check for check in report.checks if check.name == "secret_exposure")
             self.assertEqual(exposure.status, "error")

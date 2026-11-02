@@ -1,4 +1,4 @@
-"""Command-line interface for ModelShip."""
+"""Command-line interface for DossierDock."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ from pathlib import Path
 import sys
 from typing import Sequence
 
-from modelship import __version__
-from modelship.config import DEFAULT_CONFIG
-from modelship.doctor import run_doctor
-from modelship.evidence import build_dossier
-from modelship.workflow import GITHUB_ACTIONS_WORKFLOW
+from dossierdock import __version__
+from dossierdock.config import DEFAULT_CONFIG
+from dossierdock.doctor import run_doctor
+from dossierdock.evidence import build_dossier
+from dossierdock.workflow import GITHUB_ACTIONS_WORKFLOW
 
 
 def _write(path: Path, content: str, force: bool) -> None:
@@ -28,12 +28,12 @@ def _print_report(report, as_json: bool) -> None:
         return
     for check in report.checks:
         print(f"[{check.status.upper():7}] {check.name}: {check.message}")
-    print("\nModelShip is ready." if report.healthy else "\nModelShip found issues to resolve.")
+    print("\nDossierDock is ready." if report.healthy else "\nDossierDock found issues to resolve.")
 
 
 def _command_init(args: argparse.Namespace) -> int:
     root = Path(args.path).expanduser().resolve()
-    destination = root / "modelship.toml"
+    destination = root / "dossierdock.toml"
     try:
         _write(destination, DEFAULT_CONFIG, args.force)
     except FileExistsError as error:
@@ -74,7 +74,7 @@ def _command_plan(args: argparse.Namespace) -> int:
         print(f"Target:      {plan['target']}")
         print(f"Build:       docker build -f {config.dockerfile} -t {config.image} {config.context}")
         print(f"Health:      {plan['healthcheck']}")
-        print(f"Ready:       {'yes' if report.healthy else 'no — run modelship doctor'}")
+        print(f"Ready:       {'yes' if report.healthy else 'no — run dossierdock doctor'}")
     return 0 if report.healthy else 1
 
 
@@ -108,14 +108,14 @@ def _command_workflow_github(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="modelship",
+        prog="dossierdock",
         description="Release-readiness evidence and CI workflow generation for containerized AI services.",
     )
-    parser.add_argument("--version", action="version", version=f"modelship {__version__}")
+    parser.add_argument("--version", action="version", version=f"dossierdock {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    init_parser = subparsers.add_parser("init", help="Create a starter modelship.toml manifest.")
-    init_parser.add_argument("--path", default=".", help="Directory that will receive modelship.toml.")
+    init_parser = subparsers.add_parser("init", help="Create a starter dossierdock.toml manifest.")
+    init_parser.add_argument("--path", default=".", help="Directory that will receive dossierdock.toml.")
     init_parser.add_argument("--force", action="store_true", help="Replace an existing manifest.")
     init_parser.set_defaults(handler=_command_init)
 
@@ -124,15 +124,15 @@ def build_parser() -> argparse.ArgumentParser:
         ("plan", _command_plan, "Show the generated build and health-check plan."),
     ):
         command = subparsers.add_parser(name, help=help_text)
-        command.add_argument("--config", help="Path to modelship.toml (defaults to the current directory).")
+        command.add_argument("--config", help="Path to dossierdock.toml (defaults to the current directory).")
         command.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
         command.set_defaults(handler=handler)
 
     dossier = subparsers.add_parser("dossier", help="Create a portable AI service release-evidence dossier.")
-    dossier.add_argument("--config", help="Path to modelship.toml (defaults to the current directory).")
+    dossier.add_argument("--config", help="Path to dossierdock.toml (defaults to the current directory).")
     dossier.add_argument(
         "--output",
-        default=".modelship/release-dossier.json",
+        default=".dossierdock/release-dossier.json",
         help="Dossier destination, or '-' to print JSON to stdout.",
     )
     dossier.add_argument("--force", action="store_true", help="Replace an existing dossier.")
@@ -141,7 +141,7 @@ def build_parser() -> argparse.ArgumentParser:
     workflow = subparsers.add_parser("workflow", help="Generate CI workflow files.")
     workflow_subparsers = workflow.add_subparsers(dest="workflow_command", required=True)
     github = workflow_subparsers.add_parser("github", help="Write a GitHub Actions CI workflow.")
-    github.add_argument("--output", default=".github/workflows/modelship.yml", help="Workflow destination.")
+    github.add_argument("--output", default=".github/workflows/dossierdock.yml", help="Workflow destination.")
     github.add_argument("--force", action="store_true", help="Replace an existing workflow.")
     github.set_defaults(handler=_command_workflow_github)
     return parser

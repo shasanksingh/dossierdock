@@ -1,19 +1,19 @@
-# ModelShip architecture
+# DossierDock architecture
 
 ```text
-modelship.toml
+dossierdock.toml
       |
       v
-Configuration validation ----> release-readiness diagnostics (`modelship doctor`)
+Configuration validation ----> release-readiness diagnostics (`dossierdock doctor`)
       |                                      |
       v                                      v
-Build and release plan (`modelship plan`)   developer / CI feedback
+Build and release plan (`dossierdock plan`)   developer / CI feedback
       |
       v
-Secret-free release dossier (`modelship dossier`)
+Secret-free release dossier (`dossierdock dossier`)
       |
       v
-GitHub Actions generator (`modelship workflow github`)
+GitHub Actions generator (`dossierdock workflow github`)
       |
       v
 tests -> dossier artifact -> container build -> selected registry / deployment adapter
@@ -27,7 +27,7 @@ The core package has no cloud SDK dependency and contains no remote credentials.
 
 ### Release evidence, not just deployment commands
 
-ModelShip produces a portable release dossier that explains what was checked, the declared AI service contract, the build health endpoint, blockers, review items, and a SHA-256 fingerprint of the manifest. It intentionally contains no secrets or runtime tokens.
+DossierDock produces a portable release dossier that explains what was checked, the declared AI service contract, the build health endpoint, blockers, review items, and a SHA-256 fingerprint of the manifest. It intentionally contains no secrets or runtime tokens.
 
 ### Secure defaults
 
