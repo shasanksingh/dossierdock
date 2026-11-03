@@ -1,0 +1,51 @@
+[app]
+name = "support-insights-api"
+dockerfile = "Dockerfile"
+context = "."
+image = "ghcr.io/acme/support-insights-api"
+healthcheck = "/health"
+port = 8000
+
+[deployment]
+target = "kubernetes"
+environment = "staging"
+replicas = 2
+public_api = true
+auth_mode = "oidc"
+secrets_name = "support-insights-secrets"
+
+[runtime]
+readiness_path = "/ready"
+liveness_path = "/health"
+metrics_path = "/metrics"
+workers = 2
+shutdown_seconds = 30
+required_env = ["NVIDIA_API_KEY"]
+
+[resources]
+cpu = "500m"
+memory = "1Gi"
+
+[observability]
+traces_enabled = true
+structured_logs = true
+
+[ai]
+service_kind = "multi-agent-api"
+model_provider = "nvidia"
+model_ids = ["nvidia/nemotron-3.5-lightning-30b-a3b"]
+telemetry = "open-telemetry"
+
+[[agents]]
+name = "router"
+role = "Routes a request to the appropriate worker"
+depends_on = []
+healthcheck = "/health"
+timeout_seconds = 15
+
+[[agents]]
+name = "analyst"
+role = "Produces an evidence-backed response"
+depends_on = ["router"]
+healthcheck = "/health"
+timeout_seconds = 45

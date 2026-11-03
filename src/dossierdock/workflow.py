@@ -33,11 +33,13 @@ jobs:
         run: dossierdock doctor
       - name: Create release-evidence dossier
         run: dossierdock dossier --force
+      - name: Record multi-agent startup runbook
+        run: dossierdock graph --json > .dossierdock/agent-graph.json
       - name: Preserve release evidence
         uses: actions/upload-artifact@v4
         with:
           name: dossierdock-release-dossier
-          path: .dossierdock/release-dossier.json
+          path: .dossierdock/
       - name: Build immutable container image
         run: docker build --tag ${{ github.repository }}:${{ github.sha }} .
 """

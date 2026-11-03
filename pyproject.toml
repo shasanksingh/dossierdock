@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dossierdock"
-version = "0.1.0"
-description = "Release-readiness evidence and CI workflow generation for containerized AI services."
+version = "0.2.0"
+description = "Deployment contracts, release evidence, and manifest generation for containerized AI and multi-agent services."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
 authors = [
   { name = "Shashank Singh" },
 ]
-keywords = ["ai", "containers", "deployment", "docker", "ci-cd", "mlops", "release-evidence", "security"]
+keywords = ["ai", "multi-agent", "containers", "deployment", "docker", "kubernetes", "ci-cd", "mlops", "release-evidence", "security"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",

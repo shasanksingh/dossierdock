@@ -12,6 +12,8 @@ from dossierdock import __version__
 from dossierdock.config import DEFAULT_CONFIG
 from dossierdock.doctor import run_doctor
 from dossierdock.evidence import build_dossier
+from dossierdock.manifests import render_compose, render_kubernetes
+from dossierdock.topology import agent_graph, agent_start_order, format_agent_graph
 from dossierdock.workflow import GITHUB_ACTIONS_WORKFLOW
 
 
@@ -65,6 +67,14 @@ def _command_plan(args: argparse.Namespace) -> int:
             "image": config.image,
         },
         "healthcheck": f"http://localhost:{config.port}{config.healthcheck}",
+        "runtime": {
+            "readiness": config.readiness_path,
+            "liveness": config.liveness_path,
+            "metrics": config.metrics_path,
+            "workers": config.workers,
+            "shutdown_seconds": config.shutdown_seconds,
+        },
+        "agent_start_order": list(agent_start_order(config.agents)),
         "ready": report.healthy,
     }
     if args.json:
@@ -74,8 +84,45 @@ def _command_plan(args: argparse.Namespace) -> int:
         print(f"Target:      {plan['target']}")
         print(f"Build:       docker build -f {config.dockerfile} -t {config.image} {config.context}")
         print(f"Health:      {plan['healthcheck']}")
+        print(f"Readiness:   {config.readiness_path} | Liveness: {config.liveness_path} | Metrics: {config.metrics_path}")
+        print(f"Agents:      {', '.join(plan['agent_start_order']) if plan['agent_start_order'] else 'single runtime'}")
         print(f"Ready:       {'yes' if report.healthy else 'no — run dossierdock doctor'}")
     return 0 if report.healthy else 1
+
+
+def _command_graph(args: argparse.Namespace) -> int:
+    report = run_doctor(args.config)
+    if not report.config:
+        _print_report(report, args.json)
+        return 1
+    if args.json:
+        print(json.dumps(agent_graph(report.config.agents), indent=2))
+    else:
+        print(format_agent_graph(report.config.agents))
+    return 0
+
+
+def _command_manifest(args: argparse.Namespace, renderer, label: str) -> int:
+    report = run_doctor(args.config)
+    if not report.config:
+        _print_report(report, as_json=False)
+        return 1
+    destination = Path(args.output).expanduser().resolve()
+    try:
+        _write(destination, renderer(report.config), args.force)
+    except FileExistsError as error:
+        print(error, file=sys.stderr)
+        return 2
+    print(f"Created {label} manifest: {destination}")
+    return 0
+
+
+def _command_manifest_kubernetes(args: argparse.Namespace) -> int:
+    return _command_manifest(args, render_kubernetes, "Kubernetes")
+
+
+def _command_manifest_compose(args: argparse.Namespace) -> int:
+    return _command_manifest(args, render_compose, "Compose")
 
 
 def _command_dossier(args: argparse.Namespace) -> int:
@@ -122,6 +169,7 @@ def build_parser() -> argparse.ArgumentParser:
     for name, handler, help_text in (
         ("doctor", _command_doctor, "Check local container-delivery inputs."),
         ("plan", _command_plan, "Show the generated build and health-check plan."),
+        ("graph", _command_graph, "Show a dependency-safe multi-agent startup runbook."),
     ):
         command = subparsers.add_parser(name, help=help_text)
         command.add_argument("--config", help="Path to dossierdock.toml (defaults to the current directory).")
@@ -137,6 +185,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dossier.add_argument("--force", action="store_true", help="Replace an existing dossier.")
     dossier.set_defaults(handler=_command_dossier)
+
+    manifest = subparsers.add_parser("manifest", help="Generate reviewable deployment manifests without secrets.")
+    manifest_subparsers = manifest.add_subparsers(dest="manifest_command", required=True)
+    kubernetes = manifest_subparsers.add_parser("kubernetes", help="Write a Kubernetes Deployment and Service manifest.")
+    kubernetes.add_argument("--config", help="Path to dossierdock.toml (defaults to the current directory).")
+    kubernetes.add_argument("--output", default="k8s/dossierdock.yaml", help="Kubernetes manifest destination.")
+    kubernetes.add_argument("--force", action="store_true", help="Replace an existing manifest.")
+    kubernetes.set_defaults(handler=_command_manifest_kubernetes)
+
+    compose = manifest_subparsers.add_parser("compose", help="Write a Docker Compose starter manifest.")
+    compose.add_argument("--config", help="Path to dossierdock.toml (defaults to the current directory).")
+    compose.add_argument("--output", default="compose.dossierdock.yml", help="Compose manifest destination.")
+    compose.add_argument("--force", action="store_true", help="Replace an existing manifest.")
+    compose.set_defaults(handler=_command_manifest_compose)
 
     workflow = subparsers.add_parser("workflow", help="Generate CI workflow files.")
     workflow_subparsers = workflow.add_subparsers(dest="workflow_command", required=True)

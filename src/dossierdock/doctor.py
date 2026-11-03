@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
+import os
 from pathlib import Path
 import re
 
 from dossierdock.config import AppConfig, ConfigError, load_config
+from dossierdock.topology import agent_start_order
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,21 +69,107 @@ def _docker_contract_checks(config: AppConfig) -> list[Check]:
     return checks
 
 
-def _health_route_check(config: AppConfig) -> Check:
-    """Look for the declared route in typical API source files without parsing frameworks."""
+def _base_image_check(config: AppConfig) -> Check:
+    """Warn about mutable or untagged container base images."""
+    if not config.dockerfile_path.is_file():
+        return Check("base_image", "warning", "Dockerfile is unavailable; base-image pinning could not be reviewed.")
+    dockerfile = config.dockerfile_path.read_text(encoding="utf-8", errors="ignore")
+    matches = re.findall(r"^\s*FROM\s+(?:--platform=\S+\s+)?([^\s]+)", dockerfile, flags=re.MULTILINE | re.IGNORECASE)
+    if not matches:
+        return Check("base_image", "warning", "No Docker base image was detected.")
+    mutable: list[str] = []
+    for image in matches:
+        if image == "scratch" or "@sha256:" in image:
+            continue
+        last_component = image.rsplit("/", 1)[-1]
+        if ":" not in last_component or image.endswith(":latest") or "${" in image:
+            mutable.append(image)
+    if mutable:
+        return Check("base_image", "warning", f"Review mutable base image reference(s): {', '.join(mutable)}.")
+    return Check("base_image", "ok", "Docker base image references are pinned by tag or digest.")
+
+
+def _route_check(config: AppConfig, route: str, name: str) -> Check:
+    """Look for a declared route in typical API source files without parsing frameworks."""
     source_suffixes = {".py", ".js", ".ts", ".tsx", ".go", ".java"}
     ignored = {".git", ".venv", "venv", "node_modules", "build", "dist", "__pycache__"}
-    marker = config.healthcheck.lower()
+    marker = route.lower()
     for candidate in config.project_root.rglob("*"):
         if any(part in ignored for part in candidate.parts) or candidate.suffix.lower() not in source_suffixes:
             continue
         if candidate.is_file() and marker in candidate.read_text(encoding="utf-8", errors="ignore").lower():
-            return Check("health_route", "ok", f"Found '{config.healthcheck}' in {candidate.relative_to(config.project_root)}.")
+            return Check(name, "ok", f"Found '{route}' in {candidate.relative_to(config.project_root)}.")
     return Check(
-        "health_route",
+        name,
         "warning",
-        f"Could not locate '{config.healthcheck}' in source files; verify the route during a smoke test.",
+        f"Could not locate '{route}' in source files; verify the route during a smoke test.",
     )
+
+
+def _runtime_checks(config: AppConfig) -> list[Check]:
+    checks = [
+        Check(
+            "runtime_contract",
+            "ok",
+            f"{config.workers} worker(s), graceful shutdown {config.shutdown_seconds}s, replicas {config.replicas}.",
+        ),
+        Check(
+            "observability",
+            "ok" if config.traces_enabled and config.structured_logs else "warning",
+            "Traces and structured logs are declared."
+            if config.traces_enabled and config.structured_logs
+            else "Enable traces and structured logs before production deployment.",
+        ),
+    ]
+    seen: set[str] = set()
+    for name, route in (
+        ("health_route", config.healthcheck),
+        ("readiness_route", config.readiness_path),
+        ("liveness_route", config.liveness_path),
+        ("metrics_route", config.metrics_path),
+    ):
+        if route in seen:
+            continue
+        seen.add(route)
+        checks.append(_route_check(config, route, name))
+    return checks
+
+
+def _agent_topology_check(config: AppConfig) -> Check:
+    if not config.agents:
+        return Check("agent_topology", "ok", "No explicit agents declared; the service will be treated as a single runtime.")
+    order = ", ".join(agent_start_order(config.agents))
+    return Check("agent_topology", "ok", f"Validated {len(config.agents)} agent(s); dependency-safe startup order: {order}.")
+
+
+def _environment_contract_check(config: AppConfig) -> Check:
+    if not config.required_env:
+        return Check("environment_contract", "ok", "No required secret environment references declared.")
+    missing = [name for name in config.required_env if not os.environ.get(name)]
+    if missing:
+        return Check(
+            "environment_contract",
+            "warning",
+            f"Required environment references are not present locally: {', '.join(missing)}. Configure them in CI or a secret manager.",
+        )
+    return Check("environment_contract", "ok", "All declared environment references are present locally.")
+
+
+def _access_policy_check(config: AppConfig) -> Check:
+    if not config.public_api:
+        return Check("access_policy", "ok", "Service is not declared as a public API.")
+    insecure = {"", "none", "disabled", "not-applicable"}
+    if config.auth_mode.lower() in insecure:
+        return Check("access_policy", "error", "Public API requires a declared authentication mode.")
+    return Check("access_policy", "ok", f"Public API access policy declares '{config.auth_mode}'.")
+
+
+def _dependency_lock_check(config: AppConfig) -> Check:
+    names = ("uv.lock", "poetry.lock", "requirements.txt", "package-lock.json", "pnpm-lock.yaml", "yarn.lock")
+    found = [name for name in names if (config.project_root / name).is_file()]
+    if found:
+        return Check("dependency_lock", "ok", f"Dependency lock or manifest found: {', '.join(found)}.")
+    return Check("dependency_lock", "warning", "No common dependency lock or manifest was found; make runtime dependencies reproducible.")
 
 
 def _secret_exposure_check(config: AppConfig) -> Check:
@@ -119,6 +207,7 @@ def run_doctor(path: str | Path | None = None) -> DoctorReport:
 
     checks.append(_check_file(config.project_root / ".dockerignore", "dockerignore", required=False))
     checks.extend(_docker_contract_checks(config))
+    checks.append(_base_image_check(config))
     checks.append(
         Check(
             "healthcheck",
@@ -126,18 +215,27 @@ def run_doctor(path: str | Path | None = None) -> DoctorReport:
             f"Application should answer on http://localhost:{config.port}{config.healthcheck}.",
         )
     )
-    checks.append(_health_route_check(config))
+    checks.extend(_runtime_checks(config))
     checks.append(_secret_exposure_check(config))
+    checks.append(_environment_contract_check(config))
+    checks.append(_access_policy_check(config))
+    checks.append(_dependency_lock_check(config))
+    checks.append(_agent_topology_check(config))
     checks.append(
         Check(
             "ai_contract",
             "ok",
-            f"AI service contract: {config.service_kind}; provider metadata: {config.model_provider}; telemetry: {config.telemetry}.",
+            f"AI service contract: {config.service_kind}; provider metadata: {config.model_provider}; "
+            f"models: {', '.join(config.model_ids) if config.model_ids else 'unspecified'}; telemetry: {config.telemetry}.",
         )
     )
 
     if config.target == "local":
         checks.append(Check("target", "ok", "Local target selected; no remote credentials are required."))
+    elif config.target == "kubernetes":
+        checks.append(Check("target", "ok", "Kubernetes target selected; generate a reviewable manifest with 'dossierdock manifest kubernetes'."))
+    elif config.target == "docker-compose":
+        checks.append(Check("target", "ok", "Compose target selected; generate a starter file with 'dossierdock manifest compose'."))
     else:
         checks.append(
             Check(

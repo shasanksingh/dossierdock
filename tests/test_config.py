@@ -5,6 +5,7 @@ import tempfile
 import unittest
 
 from dossierdock.config import ConfigError, load_config
+from dossierdock.topology import agent_start_order
 
 
 VALID_MANIFEST = """[app]
@@ -43,4 +44,61 @@ class ConfigTests(unittest.TestCase):
     def test_rejects_invalid_port(self) -> None:
         manifest = self._manifest(VALID_MANIFEST.replace("port = 8000", "port = 0"))
         with self.assertRaisesRegex(ConfigError, "between 1 and 65535"):
+            load_config(manifest)
+
+    def test_loads_multi_agent_contract_in_dependency_order(self) -> None:
+        manifest = self._manifest(
+            VALID_MANIFEST
+            + """
+[runtime]
+required_env = ["MODEL_API_KEY"]
+
+[[agents]]
+name = "planner"
+role = "Turns requests into plans"
+depends_on = []
+healthcheck = "/health"
+timeout_seconds = 20
+
+[[agents]]
+name = "executor"
+role = "Runs the approved plan"
+depends_on = ["planner"]
+healthcheck = "/health"
+timeout_seconds = 30
+"""
+        )
+        config = load_config(manifest)
+        self.assertEqual(agent_start_order(config.agents), ("planner", "executor"))
+        self.assertEqual(config.required_env, ("MODEL_API_KEY",))
+
+    def test_rejects_unknown_agent_dependency(self) -> None:
+        manifest = self._manifest(
+            VALID_MANIFEST
+            + """
+[[agents]]
+name = "executor"
+role = "Runs work"
+depends_on = ["planner"]
+"""
+        )
+        with self.assertRaisesRegex(ConfigError, "unknown agent"):
+            load_config(manifest)
+
+    def test_rejects_cyclic_agent_dependencies(self) -> None:
+        manifest = self._manifest(
+            VALID_MANIFEST
+            + """
+[[agents]]
+name = "planner"
+role = "Plans work"
+depends_on = ["executor"]
+
+[[agents]]
+name = "executor"
+role = "Runs work"
+depends_on = ["planner"]
+"""
+        )
+        with self.assertRaisesRegex(ConfigError, "acyclic"):
             load_config(manifest)

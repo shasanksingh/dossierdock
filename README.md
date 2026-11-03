@@ -1,6 +1,6 @@
 # DossierDock
 
-`dossierdock` is a provider-neutral **release-evidence CLI for containerized AI services**. It does more than produce a build command: it checks the service contract, image hardening signals, health-route evidence, and local-secret exposure, then writes a portable release dossier for a pull request, CI artifact, or operational handover.
+`dossierdock` is a provider-neutral **deployment-contract and release-evidence CLI for containerized AI services**. It validates runtime contracts, multi-agent dependencies, image hardening signals, health-route evidence, secret references, and release readiness, then writes a portable dossier or deployment manifest for review.
 
 The first release deliberately does **not** own cloud credentials or send a deployment anywhere. That makes it a safe foundation for teams that want a clear, reviewable path from an AI service to a container build and CI pipeline. Remote targets (SSH, AWS, and other providers) can be added as opt-in adapters rather than built into every command.
 
@@ -11,6 +11,15 @@ Most deployment tools build or deploy an image. DossierDock focuses on answering
 It produces a small, provider-neutral `release-dossier.json` containing only safe metadata: the service contract, health endpoint, manifest hash, blockers, review items, and checks performed. No API key, connection string, or secret value is collected or written to the dossier.
 
 This makes the tool useful before choosing AWS, Docker, Kubernetes, a VM, or another delivery target.
+
+## New in v0.2 — AI and multi-agent deployment contracts
+
+- Defines readiness, liveness, metrics, worker, graceful-shutdown, replica, resource, access-policy, and secret-reference contracts.
+- Models a multi-agent service as a dependency graph; invalid dependencies and cycles are blocked before release.
+- Prints a deterministic startup runbook with `dossierdock graph`.
+- Generates reviewable Docker Compose and Kubernetes Deployment/Service manifests without embedding credential values.
+- Writes model metadata, runtime settings, environment references, agent topology, and a contract fingerprint into the secret-free release dossier.
+- Adds release checks for mutable base images, public APIs without authentication, absent dependency locks, and missing observability declarations.
 
 ## What it does today
 
@@ -31,6 +40,9 @@ dossierdock init --path .
 dossierdock doctor
 dossierdock plan
 dossierdock dossier
+dossierdock graph
+dossierdock manifest compose
+dossierdock manifest kubernetes
 dossierdock workflow github --output .github/workflows/dossierdock.yml
 ```
 
@@ -53,13 +65,48 @@ healthcheck = "/health"
 port = 8000
 
 [deployment]
-target = "local"
+target = "kubernetes"
 environment = "development"
+replicas = 2
+public_api = true
+auth_mode = "oidc"
+secrets_name = "my-ai-service-secrets"
+
+[runtime]
+readiness_path = "/ready"
+liveness_path = "/health"
+metrics_path = "/metrics"
+workers = 2
+shutdown_seconds = 30
+required_env = ["MODEL_API_KEY"]
+
+[resources]
+cpu = "500m"
+memory = "512Mi"
+
+[observability]
+traces_enabled = true
+structured_logs = true
 
 [ai]
-service_kind = "ai-api"
-model_provider = "external"
+service_kind = "multi-agent-api"
+model_provider = "openai-compatible"
+model_ids = ["your-model-id"]
 telemetry = "open-telemetry"
+
+[[agents]]
+name = "planner"
+role = "Plans work from an incoming request"
+depends_on = []
+healthcheck = "/health"
+timeout_seconds = 20
+
+[[agents]]
+name = "executor"
+role = "Executes approved work"
+depends_on = ["planner"]
+healthcheck = "/health"
+timeout_seconds = 30
 ```
 
 The manifest contains no credentials. Keep provider credentials in the CI platform's secret store and add a target adapter only when you are ready to deploy.
@@ -71,7 +118,10 @@ The manifest contains no credentials. Keep provider credentials in the CI platfo
 | `dossierdock init` | Create a starter manifest. |
 | `dossierdock doctor` | Report release-readiness issues and checks. |
 | `dossierdock plan` | Show the container build and health-check plan. |
+| `dossierdock graph` | Show the dependency-safe startup order for declared agents. |
 | `dossierdock dossier` | Write reviewable, secret-free release evidence as JSON. |
+| `dossierdock manifest compose` | Generate a Docker Compose starter with secret references. |
+| `dossierdock manifest kubernetes` | Generate a Kubernetes Deployment and Service manifest. |
 | `dossierdock workflow github` | Create a GitHub Actions CI workflow. |
 
 ## Release dossier
@@ -80,7 +130,22 @@ The manifest contains no credentials. Keep provider credentials in the CI platfo
 dossierdock dossier --output .dossierdock/release-dossier.json
 ```
 
-The dossier records the application, declared AI-service contract, health URL, SHA-256 fingerprint of the manifest, blockers, and review items. Generated GitHub Actions workflows upload it as a build artifact so the release evidence stays with the exact CI run that built the image.
+The dossier records the application, declared AI-service contract, model metadata, agent graph, runtime and resource contract, health URLs, SHA-256 fingerprints of the manifest and contract, blockers, and review items. Generated GitHub Actions workflows upload it as a build artifact so the release evidence stays with the exact CI run that built the image.
+
+## Multi-agent deployment workflow
+
+```bash
+# Validate the service contract locally or in CI.
+dossierdock doctor
+dossierdock graph
+
+# Produce artifacts for code review; neither command applies infrastructure.
+dossierdock dossier --force
+dossierdock manifest kubernetes --output k8s/dossierdock.yaml
+dossierdock manifest compose --output compose.dossierdock.yml
+```
+
+The generated Kubernetes file references named keys from `secrets_name`; it cannot contain a provider key. Create the secret in your platform separately, review the generated manifest, and apply it through your established delivery pipeline.
 
 ## Project layout
 
